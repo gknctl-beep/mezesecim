@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Meze Tercih Seçici</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    :root { --bg:#0b0c10; --card:#11131a; --muted:#9aa3b2; --border:#222634; --accent:#1b2130; --text:#e9edf5; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text); }
+    .wrap{ max-width:1100px; margin:0 auto; padding:18px; }
+    h1{ margin:0 0 6px; font-size:22px; }
+    .sub{ color:var(--muted); font-size:13px; margin-bottom:14px; }
+    .topbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .btns{ display:flex; gap:8px; flex-wrap:wrap; }
+    button{ border:1px solid var(--border); background:transparent; color:var(--text); padding:9px 10px; border-radius:12px; cursor:pointer; font-size:13px; }
+    button:hover{ background:var(--accent); }
+    button.primary{ background:#1f6feb; border-color:#1f6feb; }
+    button.primary:hover{ filter:brightness(1.05); }
+    button.danger{ background:#c2410c; border-color:#c2410c; }
+    button:disabled{ opacity:.5; cursor:not-allowed; }
+    .grid{ display:grid; grid-template-columns: 2fr 1fr; gap:12px; }
+    @media (max-width: 900px){ .grid{ grid-template-columns:1fr; } }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:18px; padding:14px; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+    .row{ display:flex; gap:10px; align-items:center; }
+    .row input[type="text"]{ width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1118; color:var(--text); }
+    .pillbar{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .pill{ padding:7px 10px; border-radius:999px; border:1px solid var(--border); color:var(--text); font-size:12px; cursor:pointer; user-select:none; }
+    .pill.active{ background:var(--accent); border-color:#3a425a; }
+    .count{ margin-left:auto; color:var(--muted); font-size:12px; }
+    .list{ margin-top:12px; display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    @media (max-width: 650px){ .list{ grid-template-columns:1fr; } }
+    .item{ display:flex; gap:10px; padding:10px; border-radius:16px; border:1px solid var(--border); background:#0f1118; align-items:flex-start; }
+    .item:hover{ background:rgba(27,33,48,.55); }
+    .meta{ min-width:0; }
+    .name{ font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .tags{ margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
+    .tag{ font-size:11px; padding:4px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); }
+    .sel-line{ display:flex; gap:10px; align-items:center; justify-content:space-between; padding:10px; border:1px solid var(--border); border-radius:16px; background:#0f1118; }
+    .sel-left{ min-width:0; }
+    .small{ font-size:12px; color:var(--muted); }
+    .hr{ height:1px; background:var(--border); margin:12px 0; }
+    .toast{ position:fixed; right:14px; bottom:14px; background:#0f1118; border:1px solid var(--border); padding:10px 12px; border-radius:14px; box-shadow:0 10px 26px rgba(0,0,0,.35); display:none; max-width:320px;}
+    .toast .t{ font-weight:700; font-size:13px; margin-bottom:2px;}
+    .toast .d{ color:var(--muted); font-size:12px;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>Meze Tercih Seçici</h1>
+        <div class="sub">İşaretle • ara • filtrele — sonra metin/JSON olarak paylaş.</div>
+      </div>
+      <div class="btns">
+        <button id="btnQuick" class="primary">⚡ Hızlı seçim</button>
+        <button id="btnCopy" disabled>📋 Kopyala</button>
+        <button id="btnDownload" disabled>⬇️ JSON indir</button>
+        <button id="btnClear" class="danger">🗑️ Temizle</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="row">
+          <input id="q" type="text" placeholder="Ara: örn. patlıcan, yoğurt, köfte…" />
+          <div class="count"><span id="resultCount">0</span> sonuç</div>
+        </div>
+        <div class="pillbar" id="pillbar"></div>
+        <div class="list" id="list"></div>
+        <div id="empty" class="small" style="display:none; padding:14px; text-align:center;">
+          Sonuç bulunamadı. Arama terimini değiştir.
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+          <div style="font-weight:700;">Seçimler</div>
+          <div class="small">Toplam: <span id="selCount">0</span></div>
+        </div>
+        <div class="hr"></div>
+        <div id="selected"></div>
+        <div id="noSel" class="small" style="padding:14px; text-align:center;">
+          Henüz seçim yok. Soldan işaretle.
+        </div>
+        <div class="hr"></div>
+        <div class="small">
+          İpucu: Seçimler bu tarayıcıda saklanır (localStorage). Aynı cihazda tekrar açınca durur.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <div class="t" id="toastT"></div>
+    <div class="d" id="toastD"></div>
+  </div>
+
+<script>
+$(function () {
+  const STORAGE_KEY = "agapia-preferences-v1";
+
+  const ITEMS = [
+    "Ege Usulü Fava",
+    "Acılı Ezme",
+    "Köpoğlu",
+    "Ekşi Elmalı Semizotu",
+    "Agapia Meze",
+    "Kabak Mücver",
+    "Cevizli Kabak",
+    "Yunan Tavuğu",
+    "Ballı Hardallı Patates",
+    "Mütebbel",
+    "Pancarlı Yoğurt",
+    "Kuru Cacık",
+    "Humus",
+    "Haydari",
+    "Soslu Patlıcan",
+    "Muhammara",
+    "Atom",
+    "Vişneli Pancarlı Kısır",
+    "Maş Piyazı",
+    "Havuç Tarama",
+    "Amerikan Salatası",
+    "Közlenmiş Patlıcan Ezme",
+    "Bulgur Köftesi",
+    "Agapia Special Meze",
+    "Egeli",
+    "Mercimek Köftesi",
+    "Nar-i Zen",
+    "Çiğ Köfte"
+  ];
+
+  const CATEGORY_DEFS = {
+    "Yoğurtlu": ["Haydari","Pancarlı Yoğurt","Kuru Cacık","Atom","Havuç Tarama"],
+    "Bakliyat": ["Ege Usulü Fava","Humus","Maş Piyazı","Mercimek Köftesi","Çiğ Köfte"],
+    "Patlıcanlı": ["Mütebbel","Soslu Patlıcan","Közlenmiş Patlıcan Ezme"],
+    "Kabaklı": ["Kabak Mücver","Cevizli Kabak"],
+    "Salata": ["Amerikan Salatası","Ballı Hardallı Patates","Ekşi Elmalı Semizotu"],
+    "Özel": ["Agapia Meze","Agapia Special Meze","Egeli","Nar-i Zen","Yunan Tavuğu"],
+    "Acılı": ["Acılı Ezme","Muhammara","Çiğ Köfte","Atom"]
+  };
+
+  const RECOMMENDED = [
+    "Ege Usulü Fava",
+    "Mütebbel",
+    "Haydari",
+    "Muhammara",
+    "Kabak Mücver",
+    "Mercimek Köftesi",
+    "Ballı Hardallı Patates"
+  ];
+
+  function trLower(s){ return (s || "").toLocaleLowerCase("tr"); }
+
+  function categorize(name){
+    const hits = [];
+    Object.keys(CATEGORY_DEFS).forEach(cat => {
+      if (CATEGORY_DEFS[cat].includes(name)) hits.push(cat);
+    });
+    return hits.length ? hits : ["Diğer"];
+  }
+
+  function toast(title, desc){
+    $("#toastT").text(title);
+    $("#toastD").text(desc || "");
+    $("#toast").stop(true,true).fadeIn(120);
+    setTimeout(()=> $("#toast").fadeOut(180), 1600);
+  }
+
+  // state
+  let selected = {};
+  let activeCat = "Hepsi";
+  let query = "";
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        selected = parsed && parsed.selected ? parsed.selected : {};
+      }
+    }catch(e){ selected = {}; }
+  }
+  function save(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected })); }catch(e){}
+  }
+
+  function buildCategories(){
+    const set = new Set();
+    ITEMS.forEach(n => categorize(n).forEach(c => set.add(c)));
+    const cats = ["Hepsi", ...Array.from(set).sort((a,b)=>a.localeCompare(b,"tr"))];
+
+    const $bar = $("#pillbar").empty();
+    cats.forEach(c => {
+      const $p = $("<div/>").addClass("pill").text(c)
+        .toggleClass("active", c === activeCat)
+        .on("click", function(){
+          activeCat = c;
+          $("#pillbar .pill").removeClass("active");
+          $(this).addClass("active");
+          render();
+        });
+      $bar.append($p);
+    });
+  }
+
+  function matches(name){
+    if(activeCat !== "Hepsi"){
+      const cats = categorize(name);
+      if(!cats.includes(activeCat)) return false;
+    }
+    if(query.trim()){
+      return trLower(name).includes(trLower(query.trim()));
+    }
+    return true;
+  }
+
+  function selectedList(){
+    return Object.keys(selected).filter(k => selected[k]).sort((a,b)=>a.localeCompare(b,"tr"));
+  }
+
+  function renderList(){
+    const $list = $("#list").empty();
+    const filtered = ITEMS.filter(matches);
+    $("#resultCount").text(filtered.length);
+    $("#empty").toggle(filtered.length === 0);
+
+    filtered.forEach(name => {
+      const checked = !!selected[name];
+      const $item = $("<div/>").addClass("item");
+
+      const $cb = $("<input/>", { type:"checkbox" })
+        .prop("checked", checked)
+        .on("change", function(){
+          selected[name] = this.checked;
+          save();
+          renderSelected();
+          // keep list styling in sync
+          renderList(); // simple & safe
+        });
+
+      const $meta = $("<div/>").addClass("meta");
+      const $name = $("<div/>").addClass("name").text(name);
+      const $tags = $("<div/>").addClass("tags");
+      categorize(name).forEach(c => $tags.append($("<span/>").addClass("tag").text(c)));
+
+      $meta.append($name, $tags);
+      $item.append($cb, $meta);
+
+      if(checked) $item.css("background", "rgba(27,33,48,.55)");
+      $list.append($item);
+    });
+  }
+
+  function renderSelected(){
+    const list = selectedList();
+    $("#selCount").text(list.length);
+    $("#btnCopy").prop("disabled", list.length === 0);
+    $("#btnDownload").prop("disabled", list.length === 0);
+
+    $("#noSel").toggle(list.length === 0);
+    const $sel = $("#selected").empty();
+
+    list.forEach(name => {
+      const $line = $("<div/>").addClass("sel-line");
+      const $left = $("<div/>").addClass("sel-left");
+      $left.append($("<div/>").css({fontWeight:700, fontSize:"13px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}).text(name));
+
+      const $tags = $("<div/>").addClass("tags");
+      categorize(name).forEach(c => $tags.append($("<span/>").addClass("tag").text(c)));
+      $left.append($tags);
+
+      const $rm = $("<button/>").text("Kaldır").on("click", function(){
+        selected[name] = false;
+        save();
+        render();
+      });
+
+      $line.append($left, $rm);
+      $sel.append($line);
+    });
+  }
+
+  function render(){
+    renderList();
+    renderSelected();
+  }
+
+  // actions
+  $("#q").on("input", function(){
+    query = $(this).val();
+    renderList();
+  });
+
+  $("#btnClear").on("click", function(){
+    selected = {};
+    save();
+    render();
+    toast("Temizlendi", "Tüm seçimler kaldırıldı.");
+  });
+
+  $("#btnQuick").on("click", function(){
+    RECOMMENDED.forEach(n => selected[n] = true);
+    save();
+    render();
+    toast("Hızlı seçim", "Önerilenler eklendi.");
+  });
+
+  $("#btnCopy").on("click", async function(){
+    const text = selectedList().join("\n");
+    try{
+      await navigator.clipboard.writeText(text);
+      toast("Kopyalandı", "Seçimler panoya kopyalandı.");
+    }catch(e){
+      // fallback
+      const ta = $("<textarea/>").val(text).appendTo("body").select();
+      document.execCommand("copy");
+      ta.remove();
+      toast("Kopyalandı", "Panoya kopyalandı (fallback).");
+    }
+  });
+
+  $("#btnDownload").on("click", function(){
+    const payload = {
+      created_at: new Date().toISOString(),
+      count: selectedList().length,
+      items: selectedList()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "agapia-tercihler.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  // init
+  load();
+  buildCategories();
+  render();
+});
+</script>
+</body>
+</html>
